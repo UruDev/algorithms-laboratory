@@ -5,40 +5,46 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-intervalo_t *copy_intervals(const intervalo_t *intervals, uint len) {
-  intervalo_t *copy = new intervalo_t[len];
-  for (uint i=0; i < len; i++)
-    copy[i] = intervals[i];
+struct set{
+  intervalo_t interval;
+  uint origin;
+};
+
+struct weight{
+  uint vol;
+  uint depend;
+  bool excluded;
+};
+
+set *copy_intervals(const intervalo_t *intervals, uint len) {
+  set *copy = new set[len];
+  for(uint i=0; i < len; i++){
+    copy[i].interval = intervals[i];
+    copy[i].origin = i;
+  }
   return copy;
 }
 
-void merger(intervalo_t *copy, uint left, uint mid, uint right, uint *origins){
+void merger(set *copy, uint left, uint mid, uint right){
   uint t1 = left;
   uint t2 = mid + 1;
   uint N1 = mid;
   uint N2 = right;
   uint counter = 0;
-  intervalo_t *sortedArr = new intervalo_t[right-left+1];
+  set *sortedArr = new set[right-left+1];
 
   while(t1 <= N1 && t2 <= N2){
-    if(copy[t1].fin <= copy[t2].fin){
+    if(copy[t1].interval.fin <= copy[t2].interval.fin)
       sortedArr[counter++] = copy[t1++];
-      origins[counter-1] = t1-1;
-    }else{
+    else
       sortedArr[counter++] = copy[t2++];
-      origins[counter-1] = t2-1;
-    }
   }
 
-  while(t1 <= N1){
+  while(t1 <= N1)
     sortedArr[counter++] = copy[t1++];
-    origins[counter-1] = t1-1;
-  }
 
-  while(t2 <= N2){
+  while(t2 <= N2)
     sortedArr[counter++] = copy[t2++];
-    origins[counter-1] = t2-1;
-  }
 
   uint len = right-left+1;
   for(uint i = 0; i < len; i++)
@@ -47,83 +53,95 @@ void merger(intervalo_t *copy, uint left, uint mid, uint right, uint *origins){
   delete[] sortedArr;
 }
 
-void mergeSort(intervalo_t *copy, uint left, uint right, uint *origins){ 
+void mergeSort(set *copy, uint left, uint right){ 
   if(left >= right)
     return;
 
   uint mid = left+(right-left)/2; 
-  mergeSort(copy, left, mid, origins); 
-  mergeSort(copy, mid+1, right, origins); 
-  merger(copy, left, mid, right, origins);
+  mergeSort(copy, left, mid); 
+  mergeSort(copy, mid+1, right); 
+  merger(copy, left, mid, right);
 } 
 
-intervalo_t *orderer(const intervalo_t *intervalos, uint n, uint *origins){
-  intervalo_t *copy = copy_intervals(intervalos, n);
-  for(uint p=0; p < n; p++)
-    origins[p] = 0;
-  mergeSort(copy, 0, n-1, origins);
+set *orderer(const intervalo_t *intervalos, uint n){
+  set *copy = copy_intervals(intervalos, n);
+  mergeSort(copy, 0, n-1);
   return copy;
 }
 
 bool *max_cantidad(const intervalo_t *intervalos, uint n){
   bool *ret = new bool[n];
-  uint *origins = new uint[n];
-  intervalo_t *ord = orderer(intervalos, n, origins);
-  uint reference = ord[origins[0]].fin;
-  ret[origins[0]] = true;
-  for(uint q=0; q<n; q++)
-    printf("ord> %d | origin> %d\n", ord[q].fin, origins[q]);
+  set *ord = orderer(intervalos, n);
+  uint reference = ord[0].interval.fin;
+  ret[ord[0].origin] = true;
 
   for(uint i=1; i < n; i++){
-
-    if(ord[i].inicio < reference)
-      ret[origins[i]] = false;
+    if(ord[i].interval.inicio < reference)
+      ret[ord[i].origin] = false;
     else{
-      ret[origins[i]] = true;
-      reference = ord[i].fin;
+      ret[ord[i].origin] = true;
+      reference = ord[i].interval.fin;
     }
   }
 
- // for(uint q=0; q<n; q++)
- //   printf("fin> %d | ret[%d] = %d\n", ord[q].fin, q, ret[q]);
   delete[] ord;
-  delete[] origins;
   return ret;
 }
 
 bool *max_volumen(const intervalo_t *intervalos, uint n){
   bool *ret = new bool[n];
-  uint *origins = new uint[n];
-  intervalo_t *ord = orderer(intervalos, n, origins);
+  set *ord = orderer(intervalos, n);
 
-  uint *weight = new uint[n];
+  weight *W = new weight[n];
   uint maxIndex = 0;
-  weight[0] = ord[0].volumen;
-  ret[origins[0]] = true;
+  W[0].vol = ord[0].interval.volumen;
+  W[0].depend = 0;
+  W[0].excluded = false;
+  ret[ord[0].origin] = true;
   uint i, j;
   
   for(i=1; i < n; i++){
     j = i;
-    while(j > 0 && ord[j-1].fin > ord[i].inicio)
+    while(j > 0 && ord[j-1].interval.fin > ord[i].interval.inicio)
       j--;
 
-    if(j == 0){
-      weight[i] = ord[i].volumen;
-    }else
-      weight[i] = weight[j-1]+ord[i].volumen;
+    if(j > maxIndex+1)
+      j = maxIndex+1;
 
-    if(ord[i].volumen > weight[maxIndex] || (j > 0 && (weight[j-1]+ord[i].volumen) > weight[maxIndex])){
+    if(ord[i].interval.volumen > W[maxIndex].vol || (j > 0 && W[j-1].vol+ord[i].interval.volumen > W[maxIndex].vol)){
+      W[i].excluded = false;
+      if(j == 0){
+        W[i].vol = ord[i].interval.volumen;
+        W[i].depend = i;
+      }else{
+        uint x = j-1;
+        while(W[x].excluded)
+          x = W[x].depend;
+        W[i].depend = x;
+        W[i].vol = W[j-1].vol+ord[i].interval.volumen;
+      }
+    }else{
+        W[i].vol = W[maxIndex].vol;
+        W[i].depend = maxIndex;
+        W[i].excluded = true;
+    }
+
+    if(W[i].vol > W[maxIndex].vol){
       maxIndex = i;
-      ret[origins[i]] = true;
+      ret[ord[i].origin] = true;
 
-      for(uint x=j; x <= i-1; x++)
-        ret[origins[x]] = false;
+      for(uint x=W[i].depend+1; x <= i-1; x++)
+        ret[ord[x].origin] = false;
     }else
-      ret[origins[i]] = false;
+      ret[ord[i].origin] = false;
+
+    printf("weight[%d] = %d | depend = %d\n", i, W[i].vol, W[i].depend);
   }
 
-  delete[] origins;
-  delete[] weight;
+  for(uint q=0; q<=i; q++)
+    printf("ret[%d] = %d\n", q, ret[q]);
+  delete[] W;
   delete[] ord;
   return ret;
 }
+
