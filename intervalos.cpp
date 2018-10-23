@@ -8,10 +8,6 @@
 struct set{
   intervalo_t interval;
   uint origin;
-};
-
-struct weight{
-  uint vol;
   uint depend;
   bool excluded;
 };
@@ -88,16 +84,11 @@ bool *max_cantidad(const intervalo_t *intervalos, uint n){
   return ret;
 }
 
-bool *max_volumen(const intervalo_t *intervalos, uint n){
-  bool *ret = new bool[n];
-  set *ord = orderer(intervalos, n);
-
-  weight *W = new weight[n];
-  uint maxIndex = 0;
-  W[0].vol = ord[0].interval.volumen;
-  W[0].depend = 0;
-  W[0].excluded = false;
-  ret[ord[0].origin] = true;
+uint *weight(set *ord, uint n){
+  uint *values = new uint[n]; 
+  ord[0].depend = 0;
+  ord[0].excluded = false;
+  values[0] = ord[0].interval.volumen; 
   uint i, j;
   
   for(i=1; i < n; i++){
@@ -105,42 +96,55 @@ bool *max_volumen(const intervalo_t *intervalos, uint n){
     while(j > 0 && ord[j-1].interval.fin > ord[i].interval.inicio)
       j--;
 
-    if(j > maxIndex+1)
-      j = maxIndex+1;
-
-    if(ord[i].interval.volumen > W[maxIndex].vol || (j > 0 && W[j-1].vol+ord[i].interval.volumen > W[maxIndex].vol)){
-      W[i].excluded = false;
+    if(ord[i].interval.volumen > values[i-1] || (j > 0 && values[j-1]+ord[i].interval.volumen > values[i-1])){
+      ord[i].excluded = false;
       if(j == 0){
-        W[i].vol = ord[i].interval.volumen;
-        W[i].depend = i;
+        values[i] = ord[i].interval.volumen;
+        ord[i].depend = i;
       }else{
         uint x = j-1;
-        while(W[x].excluded)
-          x = W[x].depend;
-        W[i].depend = x;
-        W[i].vol = W[j-1].vol+ord[i].interval.volumen;
+
+        while(ord[x].excluded)
+          x = ord[x].depend;
+
+        ord[i].depend = x;
+        values[i] = values[j-1] + ord[i].interval.volumen;
       }
     }else{
-        W[i].vol = W[maxIndex].vol;
-        W[i].depend = maxIndex;
-        W[i].excluded = true;
+      values[i] = values[i-1];
+      ord[i].depend = i-1;
+      ord[i].excluded = true;
     }
+  }
+  
+  return values;
+}
 
-    if(W[i].vol > W[maxIndex].vol){
-      maxIndex = i;
-      ret[ord[i].origin] = true;
+bool *max_volumen(const intervalo_t *intervalos, uint n){
+  bool *ret = new bool[n];
+  for(uint x=0; x<n; x++)
+    ret[x] = false;
 
-      for(uint x=W[i].depend+1; x <= i-1; x++)
-        ret[ord[x].origin] = false;
+  set *ord = orderer(intervalos, n);
+  uint *val = weight(ord, n);
+  uint j = n;
+
+  while(j > 0){
+    j--;
+    if(j == 0 || (j > 0 && val[j] > val[j-1])){
+      ret[ord[j].origin] = true;
+      if(j == ord[j].depend)
+        j = 0;
+      else{
+        j = ord[j].depend + 1;
+        if(j == 0)
+          ret[ord[j].origin] = true;
+      }
     }else
-      ret[ord[i].origin] = false;
-
-    printf("weight[%d] = %d | depend = %d\n", i, W[i].vol, W[i].depend);
+      ret[ord[j].origin] = false;
   }
 
-  for(uint q=0; q<=i; q++)
-    printf("ret[%d] = %d\n", q, ret[q]);
-  delete[] W;
+  delete[] val;
   delete[] ord;
   return ret;
 }
