@@ -84,41 +84,62 @@ bool *max_cantidad(const intervalo_t *intervalos, uint n){
   return ret;
 }
 
-uint *weight(set *ord, uint n){
+bool search(set *ord, uint i, uint &Noverlap){
+  uint lo = 0; 
+  uint hi = i-1; 
+
+  while(lo <= hi){ 
+    uint mid = (lo + hi) / 2; 
+    if(ord[mid].interval.fin <= ord[i].interval.inicio){ 
+      if(ord[mid + 1].interval.fin <= ord[i].interval.inicio) 
+        lo = mid + 1; 
+      else{
+        Noverlap = mid;
+        return true;
+      }
+    }else if(mid > 0)
+      hi = mid - 1;
+    else
+      return false;
+  } 
+
+  return false;
+}
+
+uint *weight(set *ord, uint n){ 
   uint *values = new uint[n]; 
   ord[0].depend = 0;
   ord[0].excluded = false;
   values[0] = ord[0].interval.volumen; 
-  uint i, j;
   
-  for(i=1; i < n; i++){
-    j = i;
-    while(j > 0 && ord[j-1].interval.fin > ord[i].interval.inicio)
-      j--;
+  for(uint i=1; i < n; i++){ 
+    uint vol = ord[i].interval.volumen; 
+    uint Noverlap;
+    bool finded = search(ord, i, Noverlap);
 
-    if(ord[i].interval.volumen > values[i-1] || (j > 0 && values[j-1]+ord[i].interval.volumen > values[i-1])){
+    if(finded){ 
+      vol += values[Noverlap];
+
+      uint x = Noverlap;
+      while(ord[x].excluded)
+        x = ord[x].depend;
+
+      ord[i].depend = x;
+    }else
+      ord[i].depend = i;
+  
+    if(vol > values[i-1]){
+      values[i] = vol;
       ord[i].excluded = false;
-      if(j == 0){
-        values[i] = ord[i].interval.volumen;
-        ord[i].depend = i;
-      }else{
-        uint x = j-1;
-
-        while(ord[x].excluded)
-          x = ord[x].depend;
-
-        ord[i].depend = x;
-        values[i] = values[j-1] + ord[i].interval.volumen;
-      }
     }else{
       values[i] = values[i-1];
-      ord[i].depend = i-1;
       ord[i].excluded = true;
+      ord[i].depend = i-1;
     }
-  }
+  } 
   
-  return values;
-}
+  return values; 
+} 
 
 bool *max_volumen(const intervalo_t *intervalos, uint n){
   bool *ret = new bool[n];
@@ -148,4 +169,3 @@ bool *max_volumen(const intervalo_t *intervalos, uint n){
   delete[] ord;
   return ret;
 }
-
