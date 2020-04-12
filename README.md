@@ -1,6 +1,9 @@
-# Facultad de ingenieria
+# Facultad de ingenieria - Udelar
 
-Curso 2018 - Lenguaje C
-=======================
+Laboratory 2018 - Language C*
+=============================
 
-Implementacion de algoritmos de busqueda.
+* Requests management implementing the following techniques:
+  - Greedy
+  - Dynamic programming
+  - Divide and conquer
